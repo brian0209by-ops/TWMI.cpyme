@@ -1,0 +1,14 @@
+.git
+.github
+.venv
+private
+data
+exports
+.env
+.env.*
+frontend/node_modules
+frontend/.next
+**/__pycache__
+**/.pytest_cache
+*.sqlite*
+*.zip

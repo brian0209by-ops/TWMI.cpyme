@@ -1,0 +1,58 @@
+name: TWMI CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: twmi_test
+          POSTGRES_USER: twmi
+          POSTGRES_PASSWORD: ci-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U twmi -d twmi_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TWMI_TEST_DATABASE_URL: postgresql://twmi:ci-only@127.0.0.1:5432/twmi_test
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -r backend/requirements.txt pytest==9.2.0
+      - run: python -m pytest -q
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+  containers:
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_PASSWORD: ci-only
+      TWMI_ACCESS_PASSWORD: ci-only-for-container-smoke
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker compose config --quiet
+      - run: docker compose up --build --wait
+      - run: |
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000)" = 401
+          curl --fail --user "owner:$TWMI_ACCESS_PASSWORD" http://127.0.0.1:3000/api/health
+      - if: always()
+        run: docker compose down --volumes

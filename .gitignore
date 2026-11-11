@@ -11,3 +11,9 @@ __pycache__/
 /data/
 /exports/
 /private/
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+/frontend/next-env.d.ts
+/frontend/AGENTS.md
