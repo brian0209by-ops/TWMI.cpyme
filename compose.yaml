@@ -1,0 +1,50 @@
+name: twmi-signals
+services:
+  db:
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: twmi
+      POSTGRES_USER: twmi
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U twmi -d twmi"]
+      interval: 5s
+      timeout: 4s
+      retries: 15
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://twmi:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/twmi
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).close()"]
+      interval: 8s
+      timeout: 5s
+      retries: 15
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      TWMI_BACKEND_URL: http://backend:8000/
+      TWMI_ACCESS_USER: ${TWMI_ACCESS_USER:-owner}
+      TWMI_ACCESS_PASSWORD: ${TWMI_ACCESS_PASSWORD:?set TWMI_ACCESS_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${TWMI_WEB_PORT:-3000}:3000"
+
+volumes:
+  postgres:

@@ -1,0 +1,43 @@
+name: TWMI Research Reports
+on:
+  schedule:
+    - cron: "0 4 * * *"
+    - cron: "0 6 * * *"
+    - cron: "0 10 * * *"
+  workflow_dispatch:
+    inputs:
+      slot:
+        type: choice
+        required: true
+        options: ["12:00", "14:00", "18:00"]
+permissions:
+  contents: read
+concurrency:
+  group: twmi-production-reports
+  cancel-in-progress: false
+jobs:
+  report:
+    if: vars.TWMI_ENABLE_REPORTS == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production-reports
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      REQUESTED_SLOT: ${{ inputs.slot }}
+      SCHEDULE: ${{ github.event.schedule }}
+      TZ: Asia/Taipei
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -r backend/requirements.txt
+      - name: Collect and generate the requested slot
+        run: |
+          case "$SCHEDULE" in
+            "0 4 * * *") slot="12:00";;
+            "0 6 * * *") slot="14:00";;
+            "0 10 * * *") slot="18:00";;
+            *) slot="$REQUESTED_SLOT";;
+          esac
+          python -m backend.cli run-slot "$slot" --date "$(date +%F)"
